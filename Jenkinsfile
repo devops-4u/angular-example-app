@@ -51,9 +51,9 @@ pipeline {
                     sh "git checkout ${MASTER_BRANCH}"
 
                     // Copy the build files from the temporary directory to master
-                    sh "cp -r ${workspace}/temp_build/html/* ${workspace}/"
+                    sh "sudo cp -r ${workspace}/temp_build/html/* ${workspace}/"
 
-                    sh 'chmod -R 777 /var/lib/jenkins/workspace/BuildAndCopyAngularApp/temp_build'
+                    sh 'sudo chmod -R 777 /var/lib/jenkins/workspace/BuildAndCopyAngularApp/temp_build'
 
 
                     // Remove the temporary directory
