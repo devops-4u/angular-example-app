@@ -11,12 +11,18 @@ pipeline {
     }
 
     stages {
-        stage('Checkout Dev Branch') {
+        stage('Checkout SCM') {
             steps {
-                script {
-                    // Check out the dev branch
-                    git branch: "${DEV_BRANCH}", url: "${REPO_URL}"
-                }
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: '*/dev']],  // Make sure to use the correct branch
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/devops-4u/angular-example-app.git',
+                        credentialsId: 'git-credentials' // Use the credentials ID you created earlier
+                    ]]
+                ])
             }
         }
 
