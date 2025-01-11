@@ -2,12 +2,12 @@ pipeline {
     agent any
 
     environment {
-        // Repository URL
         REPO_URL = 'https://github.com/devops-4u/angular-example-app.git'
         DEV_BRANCH = 'dev'
         MASTER_BRANCH = 'master'
-        BUILD_DIR = 'build' // Assuming your build output is stored in this directory
+        BUILD_DIR = 'build' // Build output directory
         DOCKER_IMAGE = 'angular-app' // Docker image name
+        TEMP_BUILD_DIR = '/var/lib/jenkins/temp_build' // Use a consistent directory
     }
 
     stages {
@@ -15,12 +15,12 @@ pipeline {
             steps {
                 checkout([
                     $class: 'GitSCM',
-                    branches: [[name: '*/dev']],  // Make sure to use the correct branch
+                    branches: [[name: '*/dev']],
                     doGenerateSubmoduleConfigurations: false,
                     extensions: [],
                     userRemoteConfigs: [[
-                        url: 'https://github.com/devops-4u/angular-example-app.git',
-                        credentialsId: 'github' // Use the credentials ID you created earlier
+                        url: "${REPO_URL}",
+                        credentialsId: 'github' // Ensure correct credentials ID
                     ]]
                 ])
             }
@@ -29,7 +29,6 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Build the Docker image using the Dockerfile
                     sh 'docker build -t ${DOCKER_IMAGE} .'
                 }
             }
@@ -38,32 +37,29 @@ pipeline {
         stage('Copy Build Files to Master') {
             steps {
                 script {
-                    // Store the workspace location
-                    def workspace = pwd()
+                    // Ensure the temporary directory exists with the right permissions
+                    sh '''
+                    sudo mkdir -p ${TEMP_BUILD_DIR}
+                    sudo chmod -R 777 ${TEMP_BUILD_DIR}
+                    '''
 
-                    // Create a temporary directory to hold the build files
-                    sh "mkdir -p ${workspace}/temp_build"
-
-                    // Copy build files from the Docker container to the workspace
-                    sh "docker run --rm -v ${workspace}/temp_build:/output ${DOCKER_IMAGE} cp -r /usr/share/nginx/html /output"
+                    // Copy build files from Docker container to the temporary directory
+                    sh "docker run --rm -v ${TEMP_BUILD_DIR}:/output ${DOCKER_IMAGE} cp -r /usr/share/nginx/html /output"
 
                     // Check out the master branch
                     sh "git checkout ${MASTER_BRANCH}"
 
-                    // Copy the build files from the temporary directory to master
-                    sh "sudo cp -r ${workspace}/temp_build/html/* ${workspace}/"
+                    // Copy files to the workspace and adjust permissions
+                    sh '''
+                    sudo cp -r ${TEMP_BUILD_DIR}/html/* .
+                    sudo chmod -R 755 .
+                    '''
 
-                    sh 'sudo chmod -R 777 /var/lib/jenkins/workspace/BuildAndCopyAngularApp/temp_build'
-
-
-                    // Remove the temporary directory
-                    sh "rm -rf ${workspace}/temp_build"
-
-                    // Add, commit, and push changes to the master branch
+                    // Add, commit, and push changes
                     sh '''
                     git add .
                     git commit -m "Copy build files from dev branch to master branch"
-                    git push origin master
+                    git push origin ${MASTER_BRANCH}
                     '''
                 }
             }
@@ -72,9 +68,13 @@ pipeline {
 
     post {
         always {
-            echo 'Cleaning up workspace...'
+            script {
+                echo 'Cleaning up workspace and temporary files...'
+                sh '''
+                sudo rm -rf ${TEMP_BUILD_DIR}
+                '''
+            }
             cleanWs() // Clean up the workspace after the job
         }
     }
 }
-
